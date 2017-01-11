@@ -2,6 +2,7 @@ import argparse
 import base64
 import json
 
+import cv2
 import numpy as np
 import socketio
 import eventlet
@@ -36,7 +37,11 @@ def telemetry(sid, data):
     # The current image from the center camera of the car
     imgString = data["image"]
     image = Image.open(BytesIO(base64.b64decode(imgString)))
-    image_array = np.asarray(image)
+    image_array = np.asarray(image) # this is RGB
+    # convert to BGR, normalize
+    image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
+    image_array = image_array.astype('float32')
+    image_array = image_array / 255. - 0.5
     transformed_image_array = image_array[None, :, :, :]
     # This model currently assumes that the features of the model are just the images. Feel free to change this.
     steering_angle = float(model.predict(transformed_image_array, batch_size=1))

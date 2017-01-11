@@ -8,14 +8,16 @@ from keras.layers import Convolution2D, ELU
 from sklearn.model_selection import train_test_split
 import numpy as np
 from keras.models import Sequential
-from keras.layers.core import Dense, Dropout, Activation, Lambda, Flatten
-from keras.optimizers import SGD, Adam, RMSprop
+from keras.layers.core import Dense, Dropout, Lambda, Flatten
+
+# todo: generator approach; resize img; train drifting leftside
 
 # constants
 IMG_DIR = 'C:\\Users\\AW51R2\\code\\carnd\\simulator-windows-64\\IMG'
 LOG = 'C:\\Users\\AW51R2\\code\\carnd\\simulator-windows-64\\driving_log.csv'
 BATCH_SIZE = 32
 EPOCH = 5
+STEERING_DELTA = 0.25
 
 def load_training_data():
     steerings = []
@@ -25,25 +27,47 @@ def load_training_data():
         for line in lines:
             t = line.split(',')
             [center_img, left_img, right_img, steering, throttle, is_break, speed] = t
+            steering = float(steering)
             steerings.append(steering)
-
-            img = cv2.imread(os.path.join(IMG_DIR, center_img)) # this is BGR
+            img = cv2.imread(center_img) # this is BGR
             images.append(img)
+
+            # flip
+            flip_img = cv2.flip(img, 1)
+            steerings.append(-1*steering)
+            images.append(flip_img)
+
+            # todo: brightness adjust
+
+
+            # left, steering + delta
+            if steering != 0:
+                radius = 1. / steering
+                left_radius = radius + STEERING_DELTA
+                right_radius = radius - STEERING_DELTA
+                steerings.append(1. / left_radius)
+                images.append(cv2.imread(left_img.strip()))
+
+                # right, steering - delta
+                steerings.append(1. / right_radius)
+                images.append(cv2.imread(right_img.strip()))
 
     return images, steerings
 
 def normalize_img(x):
     x = np.array(x)
     x = x.astype('float32')
+    x = x / 255. - 0.5
     return x
 
 def get_model():
     ch, row, col = 3, 160, 320
 
     model = Sequential()
-    model.add(Lambda(lambda x: x/127.5 - 1.,
+    model.add(Lambda(lambda x: x,
                      input_shape=(row, col, ch),
                      output_shape=(row, col, ch)))
+
     model.add(Convolution2D(16, 8, 8, subsample=(4, 4), border_mode="same"))
     model.add(ELU())
     model.add(Convolution2D(32, 5, 5, subsample=(2, 2), border_mode="same"))
@@ -57,7 +81,7 @@ def get_model():
     model.add(ELU())
     model.add(Dense(1))
 
-    model.compile(optimizer="adam", loss="mse", metrics=["accuracy"])
+    model.compile(optimizer="adam", loss="mse")
 
     return model
 
@@ -82,17 +106,18 @@ def main():
 
     #keras
     model = get_model()
-    history = model.fit(x_train, y_train,
-                        batch_size=BATCH_SIZE, nb_epoch=EPOCH,
-                        verbose=1, validation_data=(x_val, y_val))
+    model.fit(x_train, y_train,
+                    batch_size=BATCH_SIZE, nb_epoch=EPOCH,
+                    verbose=1, validation_data=(x_val, y_val))
 
-    # save model
+    # save model, todo: delete if exists
+
     if not os.path.exists("./outputs"):
         os.makedirs("./outputs")
     model.save_weights("./outputs/model.h5", True)
     with open('./outputs/model.json', 'w') as outfile:
         json.dump(model.to_json(), outfile)
-
+    print("model saved!")
 
 
 if __name__ == '__main__':
