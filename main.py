@@ -10,7 +10,7 @@ import numpy as np
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Lambda, Flatten
 
-# todo: generator approach; resize img; train drifting leftside
+# todo: generator approach; resize img; train drifting leftside by agile approach
 
 # constants
 IMG_DIR = 'C:\\Users\\AW51R2\\code\\carnd\\simulator-windows-64\\IMG'
@@ -18,6 +18,20 @@ LOG = 'C:\\Users\\AW51R2\\code\\carnd\\simulator-windows-64\\driving_log.csv'
 BATCH_SIZE = 32
 EPOCH = 5
 STEERING_DELTA = 0.25
+
+ROW = 80
+COL = 160
+
+def generator(x_train, y_train):
+
+    train_size = len(x_train)
+
+    while 1:
+        for i in range(train_size % BATCH_SIZE): #32 * 200 = 6400
+            if i % 100 == 0:
+                print("i = ", i)
+            yield x_train[i*BATCH_SIZE:(i+1)*BATCH_SIZE], y_train[i*BATCH_SIZE:(i+1)*BATCH_SIZE]
+
 
 def load_training_data():
     steerings = []
@@ -55,13 +69,19 @@ def load_training_data():
     return images, steerings
 
 def normalize_img(x):
-    x = np.array(x)
-    x = x.astype('float32')
-    x = x / 255. - 0.5
-    return x
+    # x is a list of images, we normalize each of them
+    res = []
+    for img in x:
+        img = np.array(img)
+        img = cv2.resize(img, dsize = (COL,ROW), interpolation = cv2.INTER_AREA)
+        img = img.astype('float32')
+        img = img / 255. - 0.5
+        res.append(img)
+
+    return np.array(res)
 
 def get_model():
-    ch, row, col = 3, 160, 320
+    ch, row, col = 3, ROW, COL
 
     model = Sequential()
     model.add(Lambda(lambda x: x,
@@ -88,11 +108,20 @@ def get_model():
 
 def main():
 
+    if not os.path.exists("./outputs"):
+        os.makedirs("./outputs")
+
+    try:
+        os.remove("./outputs/model.h5")
+        os.remove("./outputs/model.json")
+    except OSError:
+        pass
+
     images, steerings = load_training_data()
 
     assert len(images) == len(steerings)
 
-    print("shape of image", images[0].shape)
+    print("shape of image", images[0].shape) #160,320,3
     print("count of data points", len(steerings))
 
     # split
@@ -106,14 +135,11 @@ def main():
 
     #keras
     model = get_model()
-    model.fit(x_train, y_train,
-                    batch_size=BATCH_SIZE, nb_epoch=EPOCH,
-                    verbose=1, validation_data=(x_val, y_val))
 
-    # save model, todo: delete if exists
+    model.fit_generator(generator(x_train, y_train), samples_per_epoch=len(x_train), nb_epoch=EPOCH, verbose=1, show_accuracy=True, callbacks=[],
+                        validation_data=(x_val, y_val), class_weight=None, nb_worker=1)
 
-    if not os.path.exists("./outputs"):
-        os.makedirs("./outputs")
+    # save model
     model.save_weights("./outputs/model.h5", True)
     with open('./outputs/model.json', 'w') as outfile:
         json.dump(model.to_json(), outfile)

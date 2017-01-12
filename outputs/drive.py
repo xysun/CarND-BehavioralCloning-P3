@@ -21,6 +21,16 @@ import tensorflow as tf
 tf.python.control_flow_ops = tf
 
 
+def transform(image_array):
+    image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
+    image_array = cv2.resize(image_array, dsize=(160, 80), interpolation=cv2.INTER_AREA)
+    image_array = image_array.astype('float32')
+    image_array = image_array / 255. - 0.5
+
+    return image_array
+
+
+
 sio = socketio.Server()
 app = Flask(__name__)
 model = None
@@ -38,10 +48,10 @@ def telemetry(sid, data):
     imgString = data["image"]
     image = Image.open(BytesIO(base64.b64decode(imgString)))
     image_array = np.asarray(image) # this is RGB
-    # convert to BGR, normalize
-    image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
-    image_array = image_array.astype('float32')
-    image_array = image_array / 255. - 0.5
+
+    # transform
+    image_array = transform(image_array)
+
     transformed_image_array = image_array[None, :, :, :]
     # This model currently assumes that the features of the model are just the images. Feel free to change this.
     steering_angle = float(model.predict(transformed_image_array, batch_size=1))
