@@ -23,7 +23,7 @@ tf.python.control_flow_ops = tf
 
 def transform(image_array):
     image_array = cv2.cvtColor(image_array, cv2.COLOR_RGB2BGR)
-    image_array = cv2.resize(image_array, dsize=(160, 80), interpolation=cv2.INTER_AREA)
+    image_array = cv2.resize(image_array, dsize=(64, 64), interpolation=cv2.INTER_AREA)
     image_array = image_array.astype('float32')
     image_array = image_array / 255. - 0.5
 
