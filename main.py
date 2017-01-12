@@ -10,8 +10,6 @@ import numpy as np
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Lambda, Flatten
 
-# todo: generator approach; resize img; train drifting leftside by agile approach
-
 # constants
 IMG_DIR = 'C:\\Users\\AW51R2\\code\\carnd\\simulator-windows-64\\IMG'
 LOG = 'C:\\Users\\AW51R2\\code\\carnd\\simulator-windows-64\\driving_log.csv'
@@ -22,18 +20,9 @@ STEERING_DELTA = 0.25
 ROW = 64
 COL = 64
 
-def generator(x_train, y_train):
-
-    train_size = len(x_train)
-
-    while 1:
-        for i in range(train_size % BATCH_SIZE): #32 * 200 = 6400
-            if i % 100 == 0:
-                print("i = ", i)
-            yield x_train[i*BATCH_SIZE:(i+1)*BATCH_SIZE], y_train[i*BATCH_SIZE:(i+1)*BATCH_SIZE]
 
 def normalize_img(img):
-    # x is a list of images, we normalize each of them
+    # resize & normalize
     img = np.array(img)
     img = cv2.resize(img, dsize = (COL,ROW), interpolation = cv2.INTER_AREA)
     img = img.astype('float32')
@@ -42,8 +31,14 @@ def normalize_img(img):
     return img
 
 def load_training_data():
+    '''
+    This function loads training data from csv and image dir, also generate additional augmented images
+    A generator is not needed since all training data (with augmentation, after normalization) is only ~200mb in memory
+    '''
+
     steerings = []
     images = []
+
     with(open(LOG, 'r')) as f:
         lines = f.readlines()
         for line in lines:
@@ -60,21 +55,21 @@ def load_training_data():
             images.append(normalize_img(flip_img))
 
             # brightness adjust
-
+            # reference: https://chatbotslife.com/using-augmentation-to-mimic-human-driving-496b569760a9#.q08muecvh
             image_bright = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
             random_bright = .25 + np.random.uniform()
-            # print(random_bright)
             image_bright[:, :, 2] = image_bright[:, :, 2] * random_bright
             image_bright = cv2.cvtColor(image_bright, cv2.COLOR_HSV2BGR)
             steerings.append(steering)
             images.append(normalize_img(image_bright))
 
-
-            # left, steering + delta
+            # use left and right images, adjust steering by a delta
             if steering != 0:
                 radius = 1. / steering
                 left_radius = radius + STEERING_DELTA
                 right_radius = radius - STEERING_DELTA
+
+                # left, steering + delta
                 steerings.append(1. / left_radius)
                 images.append(normalize_img(cv2.imread(left_img.strip())))
 
@@ -87,6 +82,9 @@ def load_training_data():
 
 
 def get_model():
+    '''
+    same model from comma.ai: https://github.com/commaai/research/blob/master/train_steering_model.py
+    '''
     ch, row, col = 3, ROW, COL
 
     model = Sequential()
@@ -143,9 +141,6 @@ def main():
     model.fit(x_train, y_train,
               batch_size=BATCH_SIZE, nb_epoch=EPOCH,
               verbose=1, validation_data=(x_val, y_val))
-
-    #model.fit_generator(generator(x_train, y_train), samples_per_epoch=len(x_train), nb_epoch=EPOCH, verbose=1, show_accuracy=True, callbacks=[],
-    #                    validation_data=(x_val, y_val), class_weight=None, nb_worker=1)
 
     # save model
     model.save_weights("./outputs/model.h5", True)
