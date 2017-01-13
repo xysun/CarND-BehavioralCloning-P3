@@ -1,12 +1,12 @@
 import json
-
 import cv2
 import os
 import os.path
 
+import numpy as np
+
 from keras.layers import Convolution2D, ELU
 from sklearn.model_selection import train_test_split
-import numpy as np
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Lambda, Flatten
 
@@ -20,7 +20,6 @@ STEERING_DELTA = 0.25
 ROW = 64
 COL = 64
 
-
 def normalize_img(img):
     # resize & normalize
     img = np.array(img)
@@ -33,7 +32,7 @@ def normalize_img(img):
 def load_training_data():
     '''
     This function loads training data from csv and image dir, also generate additional augmented images
-    A generator is not needed since all training data (with augmentation, after normalization) is only ~200mb in memory
+    A generator is not needed since all training data (with augmentation, after normalization) fit within memory (~1.5G)
     '''
 
     steerings = []
@@ -115,7 +114,7 @@ def main():
     if not os.path.exists("./outputs"):
         os.makedirs("./outputs")
 
-    try:
+    try: #clean previous output
         os.remove("./outputs/model.h5")
         os.remove("./outputs/model.json")
     except OSError:
@@ -128,7 +127,7 @@ def main():
     print("shape of image", images[0].shape) #160,320,3
     print("count of data points", len(steerings))
 
-    # split
+    # split for validation and test data
     x_train, x_val, y_train, y_val = train_test_split(images, steerings, test_size=0.25, random_state=42)
     y_train = np.array(y_train)
     y_val   = np.array(y_val)
